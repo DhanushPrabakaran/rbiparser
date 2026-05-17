@@ -61,10 +61,10 @@ dist = re.compile(r"([^a-z]|^)Dist(rict|t)?([\.\s:\-]+)", re.IGNORECASE)
 dangling_punctuations = re.compile(r"[^a-z0-9\)\]\.\,]+$", re.IGNORECASE)
 trailing_punctuations = re.compile(r"[^a-z0-9\)\]]+$", re.IGNORECASE)
 rbo = re.compile(r"RBO", re.IGNORECASE)
-pin = re.compile(r"([0-9]{6}|[0-9]{3}\s[0-9]{3})")
-pin_small = re.compile(r"([\s\-]?)([0-9]+)$")
+pin = re.compile(r"(\d{6}|\d{3}\s\d{3})")
+pin_small = re.compile(r"([\s\-]?)(\d+)$")
 pin_text = re.compile(r"(Pin|Pincode|Pin code)([^a-z0-9]+)?$", re.IGNORECASE)
-number_suffix = re.compile(r"([0-9])(nd|rd|th)", re.IGNORECASE)
+number_suffix = re.compile(r"(\d)(nd|rd|th)", re.IGNORECASE)
 
 exclude_words = ["to", "the", "at", "of", "by", "as", "for", "via"]
 
