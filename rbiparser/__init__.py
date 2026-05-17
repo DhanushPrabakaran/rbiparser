@@ -77,7 +77,7 @@ def get_sheet_urls(url):
 
 	# Extract the urls.
 	s = soup(r.content, "lxml")
-	links = s.findAll("a", href=re.compile("\.xlsx$"))
+	links = s.findAll("a", href=re.compile(r"\.xlsx$", re.IGNORECASE))
 
 	if len(links) < 1:
 		raise Exception("Couldn't find any .xlsx urls")
@@ -86,34 +86,23 @@ def get_sheet_urls(url):
 
 
 def convert_xlsx_to_csv(src, target, headers):
-	"""Convert .xlsx to .csv files."""
-	try:
-		sheet = xlrd.open_workbook(src).sheet_by_index(0)
-	except Exception as e:
-		raise Exception("Can't open sheet.", str(e))
+    """Convert .xlsx to .csv files."""
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(src, read_only=True, data_only=True)
+        sheet = wb.active
+    except Exception as e:
+        raise Exception("Can't open sheet.", str(e))
 
-	with open(target, "wb") as cf:
-		writer = csv.writer(cf, quoting=csv.QUOTE_ALL)
+    with open(target, "w", newline="", encoding="utf-8") as cf:
+        writer = csv.writer(cf, quoting=csv.QUOTE_ALL)
 
-		first = False
-		try:
-			for n in xrange(sheet.nrows):
-				vals = sheet.row_values(n)
-
-				# There are junk unicode characters that need to be stripped.
-				vals = [v.encode("ascii", errors="ignore") if type(v) is unicode else v for v in vals]
-
-				# Validate headers.
-				if not first:
-					first = True
-
-					if len(vals) != len(headers):
-						raise Exception("Headers don't match.")
-
-				writer.writerow(vals)
-		except Exception as e:
-			raise Exception("Can't convert sheet.", str(e))
-
+        try:
+            for row in sheet.iter_rows(values_only=True):
+                vals = [str(v) if v is not None else "" for v in row]
+                writer.writerow(vals)
+        except Exception as e:
+            raise Exception("Can't convert sheet.", str(e))
 
 def url_to_file(url):
 	"""Exctract the potential filename from a file url."""
@@ -223,7 +212,7 @@ def convert_all(src, target, headers):
 
 	files = glob.glob(src + "/*.xlsx")
 	for x in files:
-		c = target + "/" + x.split("/")[-1].replace(".xlsx", ".csv")
+		c = os.path.join(target, os.path.basename(x).replace(".xlsx", ".csv"))
 
 		logger.info("%s -> %s" % (x, c))
 
@@ -234,28 +223,43 @@ def convert_all(src, target, headers):
 
 
 def combine_csvs(src, master, headers, filters=False):
-	"""Combine multiple CSVs to one."""
-	out = open(master, "w")
-	writer = csv.writer(out)
+    """Combine multiple CSVs to one."""
+    out = open(master, "w", newline="", encoding="utf-8")
+    writer = csv.writer(out)
 
-	# Add abbreviation to header
-	headers.append("ABBREVIATION")
+    # Add abbreviation to header
+    headers.append("ABBREVIATION")
 
-	writer.writerow(headers)
+    writer.writerow(headers)
 
-	files = glob.glob(src + "/*.csv")
-	for fname in files:
-		logging.info("processing file: {}".format(fname))
-		with open(fname, "r") as f:
-			reader = csv.reader(f)
+    files = glob.glob(src + "/*.csv")
+    for fname in files:
+        logging.info("processing file: {}".format(fname))
+        with open(fname, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
 
-			# Skip the header.
-			next(reader)
-			for row in reader:
-				row.append(fname)
-				writer.writerow(clean_row(row, filters=filters))
+            # Skip the header.
+            try:
+                next(reader)
+            except StopIteration:
+                logging.warning("Skipping empty file: {}".format(fname))
+                continue
 
+            for row in reader:
+                if len(row) == 0:
+                    continue
+                # Trim extra columns or pad missing ones to match expected 9
+                row = row[:9]
+                while len(row) < 9:
+                    row.append("")
+                try:
+                    row.append(fname)
+                    writer.writerow(clean_row(row, filters=filters))
+                except Exception as e:
+                    logging.warning("Error in row from {}: {}".format(fname, str(e)))
+                    continue
 
+    out.close()
 def clean_row(row, filters=False):
 	"""Clean a single row from the CSV."""
 	# Load map of bank abbrivations
